@@ -27,6 +27,22 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      # Add this step to fetch and cache Pexels data
+      - name: Pre-fetch Pexels API data
+        run: |
+          mkdir -p public/api
+          # Fetch default images (nature)
+          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+            "https://api.pexels.com/v1/search?query=nature&per_page=15" > public/api/nature.json
+          # Add more common searches to pre-cache
+          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+            "https://api.pexels.com/v1/search?query=beach&per_page=15" > public/api/beach.json
+          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+            "https://api.pexels.com/v1/search?query=mountains&per_page=15" > public/api/mountains.json
+          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+            "https://api.pexels.com/v1/search?query=city&per_page=15" > public/api/city.json
+          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+            "https://api.pexels.com/v1/search?query=forest&per_page=15" > public/api/forest.json
       - name: Build
         run: npm run build
       - name: Setup Pages
