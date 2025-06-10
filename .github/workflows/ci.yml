@@ -1,64 +1,72 @@
-name: Deploy to GitHub Pages
+name: Deploy Pexels Search
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
+env:
+  VITE_APP_TITLE: "Buscador Pexels"
+  VITE_DEFAULT_QUERY: "nature"
+  VITE_MAX_PHOTOS: 20
+  VITE_API_CACHE_ENABLED: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
+      
       - name: Install dependencies
         run: npm ci
-      # Add this step to fetch and cache Pexels data
-      - name: Pre-fetch Pexels API data
-        run: |
-          mkdir -p public/api
-          # Fetch default images (nature)
-          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-            "https://api.pexels.com/v1/search?query=nature&per_page=15" > public/api/nature.json
-          # Add more common searches to pre-cache
-          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-            "https://api.pexels.com/v1/search?query=beach&per_page=15" > public/api/beach.json
-          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-            "https://api.pexels.com/v1/search?query=mountains&per_page=15" > public/api/mountains.json
-          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-            "https://api.pexels.com/v1/search?query=city&per_page=15" > public/api/city.json
-          curl -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-            "https://api.pexels.com/v1/search?query=forest&per_page=15" > public/api/forest.json
-      - name: Build
+        
+      - name: Build app
         run: npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        env:
+          VITE_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          VITE_APP_MODE: production
+      
+      - name: Create API cache
+        run: |
+          mkdir -p dist/api
+          SEARCH_TERMS=("nature" "beach" "mountains" "city" "people" "animals" "food" "technology" "sports" "business")
+          
+          for term in "${SEARCH_TERMS[@]}"; do
+            echo "📦 Cacheando: $term"
+            curl -s -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+              "https://api.pexels.com/v1/search?query=$term&per_page=${{ env.VITE_MAX_PHOTOS }}" > "dist/api/$term.json" || echo "⚠️ Error cacheando $term"
+            sleep 1
+          done
+          
+          # Cachear la búsqueda por defecto
+          cp "dist/api/${{ env.VITE_DEFAULT_QUERY }}.json" dist/api/default.json
+      
+      - name: Verify build
+        run: |
+          [ -d dist ] || exit 1
+          [ -f dist/index.html ] || exit 1
+          [ -d dist/api ] || exit 1
+          echo "✅ Build verificado"
+      
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'  # Vite builds to the dist folder by default
-
+          path: 'dist'
+  
   deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
-      - name: Deploy to GitHub Pages
+      - uses: actions/deploy-pages@v4
         id: deployment
-        uses: actions/deploy-pages@v4
