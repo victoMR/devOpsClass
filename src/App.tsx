@@ -1,5 +1,4 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import './App.css';
 import type { Photo, PexelsResponse } from './types';
 
 function App() {
@@ -8,6 +7,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [inputSearch, setInputSearch] = useState<string>('nature');
+  const [modalPhoto, setModalPhoto] = useState<Photo | null>(null);
 
   const PEXELS_API_KEY: string = import.meta.env.VITE_PEXELS_API_KEY as string;
 
@@ -21,7 +21,6 @@ function App() {
     setPhotos([]);
 
     try {
-      // Try to get pre-fetched data
       try {
         const localResponse = await fetch(`/api/${searchTerm}.json`);
         if (localResponse.ok) {
@@ -30,9 +29,7 @@ function App() {
           setLoading(false);
           return;
         }
-      } catch {
-        // Silent fail, fallback to API
-      }
+      } catch {}
 
       if (!PEXELS_API_KEY) {
         setError('Error: Falta la clave de API.');
@@ -74,97 +71,214 @@ function App() {
     }
   };
 
-  // Inline styles for demonstration (move to App.css for production)
+  // Modal close on ESC
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalPhoto(null);
+    };
+    if (modalPhoto) window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modalPhoto]);
+
+  // Animations (keyframes) for modal
+  const keyframes = `
+    @keyframes fadeIn {
+      from { opacity: 0 }
+      to { opacity: 1 }
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0 }
+      100% { transform: scale(1); opacity: 1 }
+    }
+    @keyframes glassBlur {
+      from { backdrop-filter: blur(0px); }
+      to { backdrop-filter: blur(8px); }
+    }
+  `;
+
   const styles = {
     container: {
-      maxWidth: 900,
+      maxWidth: 1100,
       margin: '0 auto',
       padding: 24,
       fontFamily: 'system-ui, sans-serif',
-      background: '#f8fafc',
       minHeight: '100vh',
+      background: 'linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%)',
+      position: 'relative' as const,
+      zIndex: 1,
     },
     title: {
       textAlign: 'center' as const,
-      color: '#2563eb',
-      marginBottom: 16,
+      color: '#1e293b',
+      marginBottom: 18,
       letterSpacing: 1,
+      fontWeight: 800,
+      fontSize: 36,
+      textShadow: '0 2px 8px #0001',
+      background: 'linear-gradient(90deg, #6366f1 0%, #2563eb 100%)',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
     },
     form: {
       display: 'flex',
       justifyContent: 'center',
-      marginBottom: 24,
-      gap: 8,
+      marginBottom: 28,
+      gap: 10,
     },
     input: {
-      padding: '10px 14px',
-      borderRadius: 6,
-      border: '1px solid #d1d5db',
-      fontSize: 16,
-      width: 240,
+      padding: '12px 16px',
+      borderRadius: 12,
+      border: '1.5px solid #a5b4fc',
+      fontSize: 18,
+      width: 280,
       outline: 'none',
-      transition: 'border 0.2s',
+      transition: 'border 0.2s, box-shadow 0.2s',
+      background: 'rgba(255,255,255,0.85)',
+      boxShadow: '0 2px 8px #6366f11a',
+      fontWeight: 500,
     },
     button: {
-      padding: '10px 18px',
-      borderRadius: 6,
+      padding: '12px 22px',
+      borderRadius: 12,
       border: 'none',
-      background: '#2563eb',
+      background: 'linear-gradient(90deg, #6366f1 0%, #2563eb 100%)',
       color: '#fff',
-      fontWeight: 600,
+      fontWeight: 700,
       cursor: 'pointer',
-      fontSize: 16,
-      transition: 'background 0.2s',
+      fontSize: 18,
+      boxShadow: '0 2px 8px #6366f13a',
+      transition: 'background 0.2s, transform 0.1s',
+      letterSpacing: 0.5,
     },
     grid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-      gap: 18,
-      marginTop: 24,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+      gap: 28,
+      marginTop: 28,
     },
     imageItem: {
-      background: '#fff',
-      borderRadius: 10,
-      boxShadow: '0 2px 8px #0001',
+      background: 'rgba(255,255,255,0.85)',
+      borderRadius: 18,
+      boxShadow: '0 4px 24px #6366f13a',
       overflow: 'hidden',
-      transition: 'transform 0.2s, box-shadow 0.2s',
+      transition: 'transform 0.25s cubic-bezier(.4,2,.6,1), box-shadow 0.2s',
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
+      cursor: 'pointer',
+      border: '1.5px solid #e0e7ff',
+      position: 'relative' as const,
+      willChange: 'transform',
     },
     img: {
       width: '100%',
-      height: 180,
+      height: 200,
       objectFit: 'cover' as const,
       borderBottom: '1px solid #f1f5f9',
-      transition: 'transform 0.2s',
+      transition: 'transform 0.25s cubic-bezier(.4,2,.6,1)',
+      background: '#e0e7ff',
+      willChange: 'transform',
     },
     photographer: {
-      fontSize: 14,
-      color: '#64748b',
-      padding: '8px 0',
+      fontSize: 15,
+      color: '#6366f1',
+      padding: '10px 0 8px 0',
       textAlign: 'center' as const,
+      fontWeight: 600,
+      letterSpacing: 0.5,
+      textShadow: '0 1px 4px #fff8',
     },
     error: {
       color: '#dc2626',
       textAlign: 'center' as const,
-      marginTop: 16,
+      marginTop: 18,
+      fontWeight: 600,
     },
     loading: {
-      color: '#2563eb',
+      color: '#6366f1',
       textAlign: 'center' as const,
-      marginTop: 16,
+      marginTop: 18,
+      fontWeight: 600,
     },
     noResults: {
       color: '#64748b',
       textAlign: 'center' as const,
-      marginTop: 32,
-      fontSize: 18,
+      marginTop: 36,
+      fontSize: 20,
+      fontWeight: 500,
+    },
+    // Modal styles
+    modalOverlay: {
+      position: 'fixed' as const,
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      background: 'rgba(30,41,59,0.85)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      animation: 'fadeIn 0.25s',
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
+    },
+    modalContent: {
+      background: 'rgba(255,255,255,0.98)',
+      borderRadius: 22,
+      boxShadow: '0 8px 32px #0005',
+      padding: 0,
+      maxWidth: 700,
+      width: '90vw',
+      maxHeight: '90vh',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      position: 'relative' as const,
+      overflow: 'hidden',
+      animation: 'popIn 0.25s',
+    },
+    modalImg: {
+      width: '100%',
+      maxHeight: 480,
+      objectFit: 'contain' as const,
+      background: '#e0e7ff',
+      borderRadius: '22px 22px 0 0',
+      boxShadow: '0 2px 12px #6366f13a',
+      transition: 'box-shadow 0.2s',
+    },
+    modalClose: {
+      position: 'absolute' as const,
+      top: 12,
+      right: 18,
+      fontSize: 32,
+      color: '#6366f1',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontWeight: 900,
+      zIndex: 2,
+      transition: 'color 0.2s, transform 0.1s',
+      lineHeight: 1,
+      padding: 0,
+    },
+    modalPhotographer: {
+      fontSize: 16,
+      color: '#334155',
+      padding: '12px 0 18px 0',
+      textAlign: 'center' as const,
+      fontWeight: 600,
+      background: '#f1f5f9',
+      width: '100%',
+      borderRadius: '0 0 22px 22px',
+      boxShadow: '0 -2px 12px #6366f11a',
     },
   };
 
   return (
     <div style={styles.container}>
+      {/* Keyframes for animation */}
+      <style>{keyframes}</style>
       <h1 style={styles.title}>Buscador de Imágenes Pexels</h1>
 
       <form onSubmit={handleSubmit} style={styles.form}>
@@ -188,8 +302,10 @@ function App() {
             key={photo.id}
             style={styles.imageItem}
             tabIndex={0}
-            onMouseOver={e => (e.currentTarget.style.transform = 'scale(1.03)')}
+            onMouseOver={e => (e.currentTarget.style.transform = 'scale(1.04)')}
             onMouseOut={e => (e.currentTarget.style.transform = 'scale(1)')}
+            onClick={() => setModalPhoto(photo)}
+            aria-label="Ver imagen en grande"
           >
             <img
               src={photo.src.medium}
@@ -203,6 +319,36 @@ function App() {
       </div>
       {!loading && !error && photos.length === 0 && query && (
         <p style={styles.noResults}>No se encontraron imágenes para "{query}".</p>
+      )}
+
+      {/* Modal */}
+      {modalPhoto && (
+        <div style={styles.modalOverlay} onClick={() => setModalPhoto(null)}>
+          <div
+            style={styles.modalContent}
+            onClick={e => e.stopPropagation()}
+            tabIndex={-1}
+          >
+            <button
+              style={styles.modalClose}
+              onClick={() => setModalPhoto(null)}
+              aria-label="Cerrar"
+              title="Cerrar"
+              onMouseOver={e => (e.currentTarget.style.transform = 'scale(1.2)')}
+              onMouseOut={e => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              &times;
+            </button>
+            <img
+              src={modalPhoto.src.large2x || modalPhoto.src.large || modalPhoto.src.medium}
+              alt={modalPhoto.alt || modalPhoto.photographer || 'Imagen de Pexels'}
+              style={styles.modalImg}
+            />
+            <div style={styles.modalPhotographer}>
+              Foto por: {modalPhoto.photographer}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
