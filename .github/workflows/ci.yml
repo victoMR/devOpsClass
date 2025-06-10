@@ -1,72 +1,82 @@
-name: Deploy Pexels Search
+name: Deploy Pexels Search App
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'  # Actualiza caché semanalmente (domingo a medianoche)
 
 env:
   VITE_APP_TITLE: "Buscador Pexels"
   VITE_DEFAULT_QUERY: "nature"
   VITE_MAX_PHOTOS: 20
-  VITE_API_CACHE_ENABLED: true
+  VITE_API_CACHE_ENABLED: "true"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Build app
-        run: npm run build
-        env:
-          VITE_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          VITE_APP_MODE: production
-      
-      - name: Create API cache
-        run: |
-          mkdir -p dist/api
-          SEARCH_TERMS=("nature" "beach" "mountains" "city" "people" "animals" "food" "technology" "sports" "business")
-          
-          for term in "${SEARCH_TERMS[@]}"; do
-            echo "📦 Cacheando: $term"
-            curl -s -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
-              "https://api.pexels.com/v1/search?query=$term&per_page=${{ env.VITE_MAX_PHOTOS }}" > "dist/api/$term.json" || echo "⚠️ Error cacheando $term"
-            sleep 1
-          done
-          
-          # Cachear la búsqueda por defecto
-          cp "dist/api/${{ env.VITE_DEFAULT_QUERY }}.json" dist/api/default.json
-      
-      - name: Verify build
-        run: |
-          [ -d dist ] || exit 1
-          [ -f dist/index.html ] || exit 1
-          [ -d dist/api ] || exit 1
-          echo "✅ Build verificado"
-      
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'dist'
-  
-  deploy:
-    needs: build
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      
     steps:
-      - uses: actions/deploy-pages@v4
-        id: deployment
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build production app
+        run: npm run build
+        env:
+          VITE_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          VITE_APP_MODE: "production"
+
+      - name: Create API cache directory
+        run: mkdir -p dist/api
+
+      - name: Pre-fetch and cache API data
+        run: |
+          SEARCH_TERMS=(
+            "nature" "beach" "mountains" "city" "cars" 
+            "animals" "food" "technology" "sports" "business"
+            "travel" "people" "office" "dog" "cat"
+          )
+
+          for term in "${SEARCH_TERMS[@]}"; do
+            echo "🔄 Cacheando: $term"
+            curl -s -H "Authorization: ${{ secrets.PEXELS_API_KEY }}" \
+              "https://api.pexels.com/v1/search?query=$term&per_page=${{ env.VITE_MAX_PHOTOS }}" \
+              > "dist/api/${term}.json" || \
+              echo '{"photos": []}' > "dist/api/${term}.json"
+            sleep 1  # Evitar rate limiting
+          done
+
+          # Crear archivo default.json
+          cp "dist/api/${{ env.VITE_DEFAULT_QUERY }}.json" "dist/api/default.json"
+
+      - name: Generate 404 page
+        run: |
+          cp dist/index.html dist/404.html
+          sed -i 's/<title>.*<\/title>/<title>Página no encontrada<\/title>/' dist/404.html
+
+      - name: Validate build
+        run: |
+          [ -f dist/index.html ] || (echo "❌ Error: No se generó index.html" && exit 1)
+          [ -d dist/api ] || (echo "❌ Error: No se creó la carpeta /api" && exit 1)
+          echo "✅ Build validado correctamente"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./dist"
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
