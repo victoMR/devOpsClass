@@ -1,0 +1,39 @@
+name: CI/CD - Build, Test and Deploy to Vercel
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      - name: Usar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Ejecutar pruebas
+        run: npm run test --if-present
+
+      - name: Construir aplicación
+        run: npm run build
+
+      - name: Instalar Vercel CLI
+        run: npm install -g vercel
+
+      - name: Linkear proyecto Vercel
+        run: vercel link --token=${{ secrets.VERCEL_TOKEN }} --yes
+
+      - name: Desplegar a Vercel (Producción)
+        run: vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes --confirm
